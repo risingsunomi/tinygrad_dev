@@ -237,7 +237,6 @@ class Tensor(SimpleMathTrait):
 
     NOTE: A Tensor can only be scheduled once.
     """
-    print(f"\n\n WHY\n\n {[x.lazydata for x in (self,)+lst]}")
     big_sink = UOp.sink(*[x.lazydata for x in (self,)+lst])
 
     # TODO: move this to scheduler tensor_map pass
@@ -250,7 +249,6 @@ class Tensor(SimpleMathTrait):
     if __debug__: type_verify(list(big_sink.toposort), tensor_uop_spec)
 
     schedule, var_vals, becomes_map = create_schedule_with_vars(big_sink)
-    print(f"schedule: {schedule}")
     _apply_map_to_tensors(becomes_map)
     return memory_planner(schedule), var_vals
 
@@ -1288,19 +1286,17 @@ class Tensor(SimpleMathTrait):
       assert arg.ndim==self.ndim and all(ti==ai for i,(ti,ai) in enumerate(zip(self.shape, arg.shape)) if i!=dim)
     
     tensors = [self, *args]
-    print(f"bf {tensors=}")
     
     dim_cumsum = list(itertools.accumulate([t.shape[dim] for t in tensors], initial=0))
     
     for i,t in enumerate(tensors):
       tensors[i] = t.pad(
         [(dim_cumsum[i], dim_cumsum[-1]-dim_cumsum[i+1]) if j==dim else None for j in range(t.ndim)]
-      ).contiguous().realize()
+      ).contiguous()
 
     itt = iter(tensors)
     x = next(itt)
-    for y in itt: 
-      print(f"{x.lazydata=}\n{y.lazydata=}")
+    for y in itt:
       x = x._apply_uop(UOp.cat, y).realize()
       
     # return functools.reduce(Tensor.add, tensors)

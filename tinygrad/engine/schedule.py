@@ -414,9 +414,7 @@ create_kernels = PatternMatcher([
 
 @track_rewrites(named=True)
 def create_schedule_with_vars(big_sink:UOp) -> tuple[list[ScheduleItem], dict[Variable, int], dict[UOp, UOp]]:
-  print(f"big_sink: {big_sink}")
   tensor_map = graph_rewrite_map(big_sink, remove_movement_ops+sym, ctx={})
-  print(f"{tensor_map=}")
 
   # tensors can become an existing buffer or simplify to a const, no ScheduleItem needed
   becomes_map: dict[UOp, UOp] = {}
@@ -427,8 +425,6 @@ def create_schedule_with_vars(big_sink:UOp) -> tuple[list[ScheduleItem], dict[Va
       buf_src = [x for x in k.toposort if (xs:=tensor_map[x]).base is v.base and xs.st == v.st]
       if k is not buf_src[0]: becomes_map[k] = buf_src[0]
     if v.op is Ops.CONST and all_int(v.shape): becomes_map[k] = v
-
-  print(f"{becomes_map=}")
 
   # we group the rest of UOps into ScheduleItems
   buffer_map: dict[UOp, UOp] = {}
@@ -493,5 +489,4 @@ def create_schedule_with_vars(big_sink:UOp) -> tuple[list[ScheduleItem], dict[Va
   if CAPTURE_PROCESS_REPLAY:
     with Context(PICKLE_BUFFERS=0): PROCESS_REPLAY_CAPTURE[str(big_sink.key)] = pickle.dumps((big_sink, ContextVar._cache, [x.ast for x in schedule]))
 
-  print(f"end {schedule=}")
   return schedule, ctx.var_vals, becomes_map

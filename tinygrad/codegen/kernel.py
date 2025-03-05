@@ -54,7 +54,6 @@ class TensorCoreOptions:
 
 class Kernel:
   def __init__(self, ast:UOp, opts:Optional[Renderer]=None):
-    print(f"kernel init {ast=}\n{str(opts)=}")
     if ast.op is Ops.SINK: self.ast = ast
 
     self.opts = opts if opts is not None else Device[Device.DEFAULT].renderer

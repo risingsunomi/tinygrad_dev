@@ -151,7 +151,6 @@ si_lowerer = PatternMatcher([
 def lower_schedule_item(si:ScheduleItem) -> ExecItem: return ExecItem(*cast(tuple[Runner,list], si_lowerer.rewrite(si.ast, si.bufs)), si.metadata)
 
 def lower_schedule(schedule:list[ScheduleItem]) -> Generator[ExecItem, None, None]:
-  print(f"\n\n\n\n\n\nlower_schedule: {schedule=}")
   while len(schedule):
     si = schedule.pop(0)
     try: yield lower_schedule_item(si)

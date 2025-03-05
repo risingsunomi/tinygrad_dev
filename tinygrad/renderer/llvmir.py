@@ -100,6 +100,10 @@ llvm_rewrite = PatternMatcher([
 
   # wmma
   (UPat(Ops.WMMA, name="wmma"), render_wmma),
+
+  # cat
+  # load tensor in arg and add it to tensor in src in llvm IR
+  (UPat(Ops.CAT, name="x"), lambda ctx,x: print(f"llvm cat {ctx=}\n{x=}")),
 ])
 
 def llvm_bf16_cast(buf:UOp, idx:UOp, root:UOp):
@@ -135,10 +139,14 @@ class LLVMRenderer(Renderer):
     end_lines: dict[str, None] = {}
     vc = -1
 
+    # print(f"LLVMRenderer.render {name=}, {uops=}")
+
     acc_to_assign: dict[UOp, UOp] = {}
     for u in uops:
       if u.op is Ops.CAT:
         print("Ops.CAT called in LLVMRenderer")
+      if u.op is Ops.ADD:
+        print("OPS.ADD called in LLVMRenderer")
       if u.op is Ops.ASSIGN: # prealloc all assigns
         vc += 1
         r[u] = r[u.src[1]] = f"%assign{vc}"
@@ -152,6 +160,8 @@ class LLVMRenderer(Renderer):
                      f"  {r[u]}_ptr_amx{i} = ptrtoint {ldt(dtype.ptr())} {r[u]}_amx{i} to i64"]
 
     for u in uops:
+      if u.op is Ops.CAT:
+        print("Ops.CAT called in LLVMRenderer")
       if u.op in (Ops.DEFINE_GLOBAL, Ops.DEFINE_VAR):
         r[u] = f"%data{u.arg}" if u.op is Ops.DEFINE_GLOBAL else f"%{u.arg[0]}"
         # NOTE: MallocAllocator promises 0x20 alignment

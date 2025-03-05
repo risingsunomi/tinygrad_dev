@@ -272,7 +272,7 @@ sym = symbolic_flat+PatternMatcher([
    lambda gep,alu: UOp(alu.op, alu.dtype.scalar().vec(gep.dtype.count), tuple(x.gep(gep.arg) for x in alu.src), alu.arg)),
   # push some GEPs through WMMAs
   (UPat(Ops.GEP, src=(UPat(Ops.WMMA, name="wmma"),), name="gep"), gep_through_wmma),
-  (UPat(Ops.CAT, src=(UPat()), name='x'), lambda x: print("x", x)),
+  (UPat(Ops.CAT, src=(UPat()), name='x'), lambda x: print(f"sym called {x=}")),#UOp(Ops.VECTORIZE, x.dtype, x.src)),
   # CAT can't be rendered. it's a VECTORIZE on vectors, we expand to a single VECTORIZEs with GEPs (TODO: move this later)
   # (UPat(Ops.CAT, name="x"), lambda x: UOp(Ops.VECTORIZE, x.dtype, tuple(y.gep(i) for y in x.src for i in range(y.dtype.count)))),
   # tensor core with a 0 input is acc

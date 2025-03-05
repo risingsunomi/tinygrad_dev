@@ -11,7 +11,7 @@ from tinygrad.gradient import compute_gradient
 from tinygrad.ops import smax, smin, resolve, UOp, Ops, sint, Variable, SimpleMathTrait, identity_element
 from tinygrad.spec import tensor_uop_spec, type_verify
 from tinygrad.device import Device, BufferSpec
-from tinygrad.engine.realize import run_schedule, lower_schedule_item
+from tinygrad.engine.realize import run_schedule
 from tinygrad.engine.memory import memory_planner
 from tinygrad.engine.schedule import ScheduleItem, create_schedule_with_vars
 
@@ -20,6 +20,7 @@ from tinygrad.engine.schedule import ScheduleItem, create_schedule_with_vars
 all_tensors: set[weakref.ref[Tensor]] = set()
 
 def _apply_map_to_tensors(applied_map:dict[UOp, UOp]) -> None:
+  # print(f"_apply_map_to_tensors {applied_map=}")
   # get all children of keys in applied_map
   all_uops: set[UOp] = set()
   search_uops = list(applied_map)
@@ -236,6 +237,7 @@ class Tensor(SimpleMathTrait):
 
     NOTE: A Tensor can only be scheduled once.
     """
+    print(f"\n\n WHY\n\n {[x.lazydata for x in (self,)+lst]}")
     big_sink = UOp.sink(*[x.lazydata for x in (self,)+lst])
 
     # TODO: move this to scheduler tensor_map pass
@@ -248,6 +250,7 @@ class Tensor(SimpleMathTrait):
     if __debug__: type_verify(list(big_sink.toposort), tensor_uop_spec)
 
     schedule, var_vals, becomes_map = create_schedule_with_vars(big_sink)
+    print(f"schedule: {schedule}")
     _apply_map_to_tensors(becomes_map)
     return memory_planner(schedule), var_vals
 
@@ -259,7 +262,6 @@ class Tensor(SimpleMathTrait):
 
   def realize(self, *lst:Tensor, do_update_stats=True) -> Tensor:
     """Triggers the computation needed to create these Tensor(s)."""
-    # print(f"\n\nrealizing {self=} {lst=}")
     run_schedule(*self.schedule_with_vars(*lst), do_update_stats=do_update_stats)
     return self
 
@@ -1279,32 +1281,28 @@ class Tensor(SimpleMathTrait):
     """
     const_self = self
     cs_schedule = const_self.schedule()
-    print(f"{cs_schedule=}")
-    print(f"{const_self=}")
 
     dim = self._resolve_dim(dim)
     
-    for arg in args: assert arg.ndim==self.ndim and all(ti==ai for i,(ti,ai) in enumerate(zip(self.shape, arg.shape)) if i!=dim)
+    for arg in args: 
+      assert arg.ndim==self.ndim and all(ti==ai for i,(ti,ai) in enumerate(zip(self.shape, arg.shape)) if i!=dim)
     
     tensors = [self, *args]
+    print(f"bf {tensors=}")
     
     dim_cumsum = list(itertools.accumulate([t.shape[dim] for t in tensors], initial=0))
     
     for i,t in enumerate(tensors):
       tensors[i] = t.pad(
         [(dim_cumsum[i], dim_cumsum[-1]-dim_cumsum[i+1]) if j==dim else None for j in range(t.ndim)]
-      )
-    
-    print(f"{tensors=}")
+      ).contiguous().realize()
 
     itt = iter(tensors)
     x = next(itt)
     for y in itt: 
-      print(f"{x=}\n{y=}")
-      x = x._apply_uop(UOp.cat, arg=y.lazydata)
-      print(f"{x.schedule()=}")
-
-    
+      print(f"{x.lazydata=}\n{y.lazydata=}")
+      x = x._apply_uop(UOp.cat, y).realize()
+      
     # return functools.reduce(Tensor.add, tensors)
     return x
 
@@ -3973,7 +3971,6 @@ class Tensor(SimpleMathTrait):
 
 def _metadata_wrapper(fn):
   def _wrapper(*args, **kwargs):
-    # print(f"{args=}, {kwargs=}, {fn=}")
     if _METADATA.get() is not None: return fn(*args, **kwargs)
 
     if TRACEMETA >= 2:

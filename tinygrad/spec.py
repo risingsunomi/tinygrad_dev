@@ -116,6 +116,7 @@ spec = PatternMatcher([
   (UPat((Ops.LOAD, Ops.STORE), src=(UPat(dtype=dtypes.int64),), allow_any_len=True), lambda: True),
 
   # concatination of tensors
+  # TODO: add in shape check
   (UPat(Ops.CAT, name="x"), lambda x: all(x.dtype == y.dtype for y in x.src)),
 ])
 

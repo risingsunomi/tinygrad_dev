@@ -514,6 +514,7 @@ class UOp(MathTrait, metaclass=UOpMetaClass):
 
   def _mop(self, op:Ops, arg):
     ret = UOp(op, self.dtype, (self,), arg)
+    print(self.st == ret.st)
     if self.st == ret.st: return self  # ignore NOOPs, also check ret.st
     return ret
 
@@ -525,7 +526,7 @@ class UOp(MathTrait, metaclass=UOpMetaClass):
   def flip(self, arg:tuple[bool, ...]): return self._mop(Ops.FLIP, arg)
 
   # *** uop manipulation ops ***
-  def cat(self, arg): return self._mop(Ops.CAT, arg)
+  def cat(self, arg): return UOp(Ops.CAT, self.dtype, (self,), arg)
 
   # *** uop Buffer stuff ***
 
@@ -831,6 +832,7 @@ class PatternMatcher:
 
   def rewrite(self, uop:UOp, ctx=None) -> UOp|None:
     ler = {u.op for u in uop.src}
+    # print(f"{ler=}")
     for p,fxn,early_reject,has_ctx in self.pdict.get(uop.op, []):
       if not early_reject.issubset(ler): continue
       for match in p.match(uop, {}):

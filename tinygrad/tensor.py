@@ -184,7 +184,9 @@ class Tensor(SimpleMathTrait):
   def __del__(self): all_tensors.discard(weakref.ref(self))
 
   def _apply_uop(self, fxn:Callable, *x:Tensor, **kwargs) -> Tensor:
+    print(f"apply_uop\n{fxn=}\n{x=}\n{[t.lazydata for t in (self,)+x]=}")
     new_uop: UOp = fxn(*[t.lazydata for t in (self,)+x], **kwargs)
+    print(f"{new_uop=}")
     needs_input_grad = [t.requires_grad for t in (self,)+x]
     return Tensor(new_uop, device=new_uop.device, requires_grad=True if any(needs_input_grad) else None if None in needs_input_grad else False)
 
@@ -1277,8 +1279,7 @@ class Tensor(SimpleMathTrait):
     print(t0.cat(t1, t2, dim=1).numpy())
     ```
     """
-    const_self = self
-    cs_schedule = const_self.schedule()
+    print(f"\n=========cat called=====\n")
 
     dim = self._resolve_dim(dim)
     
@@ -1286,18 +1287,36 @@ class Tensor(SimpleMathTrait):
       assert arg.ndim==self.ndim and all(ti==ai for i,(ti,ai) in enumerate(zip(self.shape, arg.shape)) if i!=dim)
     
     tensors = [self, *args]
+    print(f"{[t.shape for t in tensors]=}")
     
     dim_cumsum = list(itertools.accumulate([t.shape[dim] for t in tensors], initial=0))
+
+    print(f"{dim_cumsum=}")
     
     for i,t in enumerate(tensors):
       tensors[i] = t.pad(
         [(dim_cumsum[i], dim_cumsum[-1]-dim_cumsum[i+1]) if j==dim else None for j in range(t.ndim)]
       ).contiguous()
 
+    print(f"{[t for t in tensors]=}")
+
     itt = iter(tensors)
     x = next(itt)
+    print(f"cat bf {x=}\n")
     for y in itt:
+      # catop = UOp(Ops.CAT, x.dtype, (x.lazydata,), y.lazydata)
+      # print(f"{catop=}")
+      # x = Tensor(catop, device="LLVM").realize()
+
       x = x._apply_uop(UOp.cat, y).realize()
+      # x = x._apply_broadcasted_uop(UOp.cat, y)#.contiguous().realize()
+
+      print(f"cat lp {x=}\n{x.schedule()=}")
+      
+      
+    print(f"cat af {x=}\n{x.schedule()=}")
+
+
       
     # return functools.reduce(Tensor.add, tensors)
     return x

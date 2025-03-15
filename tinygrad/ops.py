@@ -514,7 +514,6 @@ class UOp(MathTrait, metaclass=UOpMetaClass):
 
   def _mop(self, op:Ops, arg):
     ret = UOp(op, self.dtype, (self,), arg)
-    print(self.st == ret.st)
     if self.st == ret.st: return self  # ignore NOOPs, also check ret.st
     return ret
 
@@ -526,7 +525,8 @@ class UOp(MathTrait, metaclass=UOpMetaClass):
   def flip(self, arg:tuple[bool, ...]): return self._mop(Ops.FLIP, arg)
 
   # *** uop manipulation ops ***
-  def cat(self, arg): return UOp(Ops.CAT, self.dtype, (self,), arg)
+  def cat(self, arg): 
+    return UOp(Ops.CAT, self.dtype, (self,arg,))
 
   # *** uop Buffer stuff ***
 

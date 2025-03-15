@@ -102,15 +102,15 @@ llvm_rewrite = PatternMatcher([
   (UPat(Ops.WMMA, name="wmma"), render_wmma),
 
   # cat
-  ((UPat(Ops.CAT, name="x"), lambda ctx, x: print(f"{ctx=}\n{x=}\n{ctx[x]=}"))),
+  # ((UPat(Ops.CAT, name="x"), lambda ctx, x: print(f"{ctx=}\n{x=}\n{ctx[x.src[0]]=}\n{x.src[0].dtype.vcount=}"))),
 
   (UPat(Ops.CAT, name="x"), lambda ctx, x:
     f"  ; CAT\n"
-    # f"  %x_vec = load {ldt(x.dtype)}, {ldt(x.dtype)}* {ctx[x]}, align 4 \n"
-    # f"  %data_vec = load {ldt(x.dtype)}, {ldt(x.dtype)}* {ctx[x.src[0].src[0]]}, align 4\n"
-    # f"  %res_vec = fadd {ldt(x.dtype)} %x_vec, %data_vec\n"
-    # f"  store {ldt(x.dtype)} %res_vec, {ldt(x.dtype)}* {ctx[x.src[0].src[0]]}, align 4\n"
-    f"  ; END CAT")
+    f"  %cmp = fcmp one {ldt(x.src[0].dtype)} {ctx[x.src[0]]}, {'0.0' if x.src[0].dtype == dtypes.float else '0'}\n"
+    f"  {ctx[x]} = select i1 %cmp, {ldt(x.src[0].dtype)} {ctx[x.src[0]]}, {ldt(x.src[1].dtype)} {ctx[x.src[1]]} \n"
+    f"  ; END CAT"
+  ),
+
 ])
 
 def llvm_bf16_cast(buf:UOp, idx:UOp, root:UOp):
@@ -150,8 +150,6 @@ class LLVMRenderer(Renderer):
 
     acc_to_assign: dict[UOp, UOp] = {}
     for u in uops:
-      if u.op is Ops.CAT:
-        print("LLVMRenderer.render CAT", u)
       if u.op is Ops.ASSIGN: # prealloc all assigns
         vc += 1
         r[u] = r[u.src[1]] = f"%assign{vc}"
@@ -165,7 +163,6 @@ class LLVMRenderer(Renderer):
                      f"  {r[u]}_ptr_amx{i} = ptrtoint {ldt(dtype.ptr())} {r[u]}_amx{i} to i64"]
 
     for u in uops:
-      print(f"\n{u=}")
       if u.op in (Ops.DEFINE_GLOBAL, Ops.DEFINE_VAR):
         r[u] = f"%data{u.arg}" if u.op is Ops.DEFINE_GLOBAL else f"%{u.arg[0]}"
         # NOTE: MallocAllocator promises 0x20 alignment

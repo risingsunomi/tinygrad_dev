@@ -3,7 +3,7 @@ from tinygrad.device import Compiled, Compiler, MallocAllocator, CPUProgram
 from tinygrad.helpers import OSX, getenv, capstone_flatdump, DEBUG
 from tinygrad.renderer.llvmir import LLVMRenderer
 import tinygrad.runtime.autogen.llvm as llvm
-from tinygrad.runtime.support.elf import jit_loader
+from tinygrad.runtime.support.elf import jit_loader, EXTERNAL_SYMBOLS
 
 def cerr(): return ctypes.pointer(ctypes.pointer(ctypes.c_char()))
 
@@ -56,3 +56,5 @@ class LLVMDevice(Compiled):
   def __init__(self, device:str):
     compiler = LLVMCompiler({'arm64': 'AArch64', 'aarch64': 'AArch64', 'x86_64': 'X86', 'AMD64': 'X86'}[platform.machine()])
     super().__init__(device, MallocAllocator, LLVMRenderer('win64cc' if sys.platform == 'win32' else None), compiler, CPUProgram)
+
+

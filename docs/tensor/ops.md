@@ -6,6 +6,7 @@
 ::: tinygrad.Tensor.min
 ::: tinygrad.Tensor.any
 ::: tinygrad.Tensor.all
+::: tinygrad.Tensor.isclose
 ::: tinygrad.Tensor.mean
 ::: tinygrad.Tensor.var
 ::: tinygrad.Tensor.std
@@ -33,6 +34,7 @@
 ::: tinygrad.Tensor.interpolate
 ::: tinygrad.Tensor.scatter
 ::: tinygrad.Tensor.scatter_reduce
+::: tinygrad.Tensor.topk
 
 ## Neural Network (functional)
 

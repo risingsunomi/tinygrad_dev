@@ -10,7 +10,7 @@ from tinygrad.renderer import Renderer
 
 # **************** Device ****************
 
-ALL_DEVICES = ["METAL", "AMD", "NV", "CUDA", "QCOM", "GPU", "CLANG", "LLVM", "DSP", "WEBGPU"]
+ALL_DEVICES = ["METAL", "AMD", "NV", "CUDA", "QCOM", "GPU", "CPU", "LLVM", "DSP", "WEBGPU"]
 class _Device:
   def __init__(self) -> None:
     self._devices = [x.stem[len("ops_"):].upper() for x in (pathlib.Path(__file__).parent/"runtime").iterdir() if x.stem.startswith("ops_")]
@@ -44,6 +44,7 @@ class _Device:
       return device
     except StopIteration as exc: raise RuntimeError("no usable devices") from exc
 Device = _Device()
+atexit.register(lambda: [Device[dn].finalize() for dn in Device._opened_devices])
 
 # **************** Profile ****************
 
@@ -55,6 +56,9 @@ class ProfileDeviceEvent(ProfileEvent):
 
 @dataclass(frozen=True)
 class ProfileRangeEvent(ProfileEvent): device:str; name:str; st:decimal.Decimal; en:decimal.Decimal; is_copy:bool # noqa: E702
+
+@dataclass(frozen=True)
+class ProfileProgramEvent(ProfileEvent): device:str; name:str; lib:bytes|None; base:int|None # noqa: E702
 
 @dataclass(frozen=True)
 class ProfileGraphEntry: device:str; name:str; st_id:int; en_id:int; is_copy:bool # noqa: E702
@@ -235,10 +239,13 @@ class CPUProgram:
       PAGE_EXECUTE_READWRITE = 0x40
       MEM_COMMIT =  0x1000
       MEM_RESERVE = 0x2000
-      ctypes.windll.kernel32.VirtualAlloc.restype = ctypes.c_uint64
-      ptr = ctypes.windll.kernel32.VirtualAlloc(ctypes.c_int(0), ctypes.c_int(len(lib)), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE)
-      ctypes.memmove(ptr, lib, len(lib))
-      self.fxn = ctypes.CFUNCTYPE(None)(ptr)
+      ctypes.windll.kernel32.VirtualAlloc.restype = ctypes.c_void_p
+      self.mem = ctypes.windll.kernel32.VirtualAlloc(ctypes.c_void_p(0), ctypes.c_size_t(len(lib)), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE)
+      ctypes.memmove(self.mem, lib, len(lib))
+      ctypes.windll.kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+      proc = ctypes.windll.kernel32.GetCurrentProcess()
+      ctypes.windll.kernel32.FlushInstructionCache(ctypes.c_void_p(proc), ctypes.c_void_p(self.mem), ctypes.c_size_t(len(lib)))
+      self.fxn = ctypes.CFUNCTYPE(None)(self.mem)
     else:
       from mmap import mmap, PROT_READ, PROT_WRITE, PROT_EXEC, MAP_ANON, MAP_PRIVATE
       # On apple silicon with SPRR enabled (it always is in macos) RWX pages are unrepresentable: https://blog.svenpeter.dev/posts/m1_sprr_gxf/
@@ -266,6 +273,9 @@ class CPUProgram:
     # The bug was fixed in https://github.com/llvm/llvm-project/commit/454cc36630296262cdb6360b60f90a64a97f7f1a but was only backported to xcode 16+
     if platform.machine() == "arm64" and OSX: args = args[:8] + [ctypes.c_int64(a) if isinstance(a, int) else a for a in args[8:]]
     return cpu_time_execution(lambda: self.fxn(*args), enable=wait)
+
+  def __del__(self):
+    if sys.platform == 'win32': ctypes.windll.kernel32.VirtualFree(ctypes.c_void_p(self.mem), ctypes.c_size_t(0), 0x8000) #0x8000 - MEM_RELEASE
 
 # **************** for Compiled Devices ****************
 
@@ -300,6 +310,11 @@ class Compiled:
     Called at the end of profiling to allow the device to finalize any profiling.
     """
     # override this in your device implementation
+  def finalize(self):
+    """
+    Called at the end of process lifetime to allow the device to finalize.
+    """
+    # override this in your device implementation
 
 # TODO: move this to each Device
 def is_dtype_supported(dtype:DType, device:Optional[str]=None) -> bool:
@@ -330,8 +345,9 @@ if PROFILE:
 
     with open(fn:=temp("profile.pkl", append_user=True), "wb") as f: pickle.dump(Compiled.profile_events, f)
 
-    from tinygrad.ops import launch_viz
-    launch_viz("PROFILE", fn)
+    if not getenv("SQTT", 0):
+      from tinygrad.ops import launch_viz
+      launch_viz("PROFILE", fn)
 
 if __name__ == "__main__":
   for device in ALL_DEVICES:

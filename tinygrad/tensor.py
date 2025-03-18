@@ -179,6 +179,7 @@ class Tensor(SimpleMathTrait):
 
   def _apply_uop(self, fxn:Callable, *x:Tensor, **kwargs) -> Tensor:
     new_uop: UOp = fxn(*[t.lazydata for t in (self,)+x], **kwargs)
+    # print(f"{new_uop=}")
     needs_input_grad = [t.requires_grad for t in (self,)+x]
     return Tensor(new_uop, device=new_uop.device, requires_grad=True if any(needs_input_grad) else None if None in needs_input_grad else False)
 
@@ -1271,7 +1272,7 @@ class Tensor(SimpleMathTrait):
     print(t0.cat(t1, t2, dim=1).numpy())
     ```
     """
-    # print(f"\n=========cat called=====\n")
+    print(f"\n=========cat called=====\n")
 
     dim = self._resolve_dim(dim)
     
@@ -1281,19 +1282,36 @@ class Tensor(SimpleMathTrait):
     tensors = [self, *args]
     
     dim_cumsum = list(itertools.accumulate([t.shape[dim] for t in tensors], initial=0))
-    
+    final_shape = self.shape[:dim] + (dim_cumsum[-1],) + self.shape[dim+1:]
+    print(f"{final_shape=}")
+
     for i,t in enumerate(tensors):
       tensors[i] = t.pad(
         [(dim_cumsum[i], dim_cumsum[-1]-dim_cumsum[i+1]) if j==dim else None for j in range(t.ndim)]
       )
+ 
+    # tlz = [t.lazydata for t in tensors]
+    # print(f"{tlz=}")
 
-    itt = iter(tensors)
-    x = next(itt)
-    for y in itt:
-      x = x._apply_uop(UOp.cat, y).realize()
-      
-    # return functools.reduce(Tensor.add, tensors)
-    return x
+    # itt = iter(tensors)
+    # x = next(itt)
+    # for y in itt:
+    #   x = x._apply_uop(UOp.cat, arg=y)
+      # print(f"{x.lazydata=}")
+      # x = x.where(x,x)
+      # x = x + y
+
+    # return x
+    # return x.reshape(final_shape)
+
+    # out_tensor = functools.reduce(Tensor.add, tensors)
+    # print(f"{out_tensor.lazydata=}")
+
+    # return out_tensor.reshape(final_shape)
+
+    # return functools.reduce(tensors[0].where, tensors)
+    return functools.reduce(Tensor.add, tensors)
+    # return x.realize()
 
   def stack(self:Tensor, *args:Tensor, dim:int=0) -> Tensor:
     """

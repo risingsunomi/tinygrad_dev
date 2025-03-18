@@ -510,9 +510,11 @@ class UOp(MathTrait, metaclass=UOpMetaClass):
   @staticmethod
   def unique(): return UOp(Ops.UNIQUE, arg=next(UOp.unique_num))
 
-  # *** uop manipulation ops ***
-  def cat(self, arg): 
-    return UOp(Ops.CAT, self.dtype, (self,arg,))
+  # *** uop CAT ***
+  def cat(self, arg):
+    cat_uop = UOp(Ops.CAT, self.dtype, (self,arg))
+    print(f"{cat_uop=}")
+    return cat_uop
 
   # *** uop Buffer stuff ***
 

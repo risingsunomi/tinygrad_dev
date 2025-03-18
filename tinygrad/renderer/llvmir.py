@@ -102,12 +102,13 @@ base_rewrite = PatternMatcher([
   (UPat(Ops.WMMA, name="wmma"), render_wmma),
 
   # cat
-  # ((UPat(Ops.CAT, name="x"), lambda ctx, x: print(f"{ctx=}\n{x=}\n{ctx[x.src[0]]=}\n{x.src[0].dtype.vcount=}"))),
+  (UPat(Ops.CAT, name="x"), lambda ctx, x: print(f"{ctx=}\n{x=}\n{x.src=}\n{x.arg=}")),
 
   (UPat(Ops.CAT, name="x"), lambda ctx, x:
     f"  ; CAT\n"
-    f"  %cmp = fcmp one {ldt(x.src[0].dtype)} {ctx[x.src[0]]}, {'0.0' if x.src[0].dtype == dtypes.float else '0'}\n"
-    f"  {ctx[x]} = select i1 %cmp, {ldt(x.src[0].dtype)} {ctx[x.src[0]]}, {ldt(x.src[1].dtype)} {ctx[x.src[1]]} \n"
+    # f"  {ctx[x]} = fadd{flags} {ctx[x]}, {ctx[x.src[0]]}\n"
+    # f"  ;%cmp = fcmp one {ldt(x.src[0].dtype)} {ctx[x.src[0]]}, {'0.0' if x.src[0].dtype == dtypes.float else '0'}\n"
+    # f"  ;{ctx[x]} = select i1 %cmp, {ldt(x.src[0].dtype)} {ctx[x.src[0]]}, {ldt(x.src[1].dtype)} {ctx[x.src[1]]} \n"
     f"  ; END CAT"
   ),
 
@@ -163,6 +164,8 @@ class LLVMRenderer(Renderer):
 
     name = "test"
     for u in uops:
+      if u.op is Ops.CAT:
+        print(f"{u=}")
       if u.op is Ops.NAME:
         name = u.arg
         continue
